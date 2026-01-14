@@ -70,7 +70,7 @@ class Program
                 // Message key determines which partition the message goes to
                 // Same key always goes to the same partition (ordering guarantee)
                 var key = $"user-{messageCount % 3}"; // 3 different keys for distribution
-                var value = $"Message #{messageCount} at {DateTime.Now:HH:mm:ss}";
+                var value = $"Message #{messageCount} at {DateTime.UtcNow:HH:mm:ss}";
                 
                 // Asynchronous send with delivery report
                 var deliveryResult = await producer.ProduceAsync(
@@ -191,14 +191,14 @@ class Program
             try
             {
                 // Small delay to let producer start first
-                await Task.Delay(1000);
+                await Task.Delay(1000, cts.Token);
                 await RunConsumer();
             }
             catch { }
         }, cts.Token);
         
         Console.ReadKey();
-        cts.Cancel();
+        await cts.CancelAsync();
         
         await Task.WhenAll(producerTask, consumerTask);
         Console.WriteLine("\n✓ Both Producer and Consumer stopped.");
