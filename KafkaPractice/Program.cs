@@ -171,36 +171,101 @@ class Program
     /// </summary>
     static async Task RunBoth()
     {
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         
         Console.WriteLine("\n✓ Starting Producer and Consumer...\n");
-        Console.WriteLine("Press any key to stop both...\n");
+        Console.WriteLine("✓ Press Ctrl+C to stop both...\n");
         
-        // Run producer and consumer concurrently
-        var producerTask = Task.Run(async () =>
+        // Handle Ctrl+C gracefully
+        Console.CancelKeyPress += (sender, e) =>
         {
-            try
-            {
-                await RunProducer();
-            }
-            catch { }
-        }, cts.Token);
+            e.Cancel = true; // Prevent immediate termination
+            cts.Cancel();
+        };
         
-        var consumerTask = Task.Run(async () =>
+        try
         {
-            try
+            // Run both concurrently without Task.Run (already in async context)
+            await Task.WhenAll(
+                RunProducerWithCancellation(cts.Token),
+                RunConsumerWithCancellation(cts.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("\n✓ Both Producer and Consumer stopped.");
+        }
+    }
+    
+    static async Task RunProducerWithCancellation(CancellationToken cancellationToken)
+    {
+        var config = new ProducerConfig
+        {
+            BootstrapServers = BootstrapServers,
+            ClientId = "learning-producer",
+            Acks = Acks.All
+        };
+        
+        using var producer = new ProducerBuilder<string, string>(config).Build();
+        Console.WriteLine($"✓ [Producer] Connected");
+        
+        var messageCount = 0;
+        
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            messageCount++;
+            var key = $"user-{messageCount % 3}";
+            var value = $"Message #{messageCount} at {DateTime.UtcNow:HH:mm:ss}";
+            
+            var deliveryResult = await producer.ProduceAsync(
+                TopicName,
+                new Message<string, string> { Key = key, Value = value },
+                cancellationToken);
+            
+            Console.WriteLine(
+                $"✓ [Producer] Key='{key}' | Partition={deliveryResult.Partition.Value} | " +
+                $"Offset={deliveryResult.Offset.Value}");
+            
+            await Task.Delay(2000, cancellationToken);
+        }
+        
+        producer.Flush(TimeSpan.FromSeconds(5));
+    }
+    
+    static async Task RunConsumerWithCancellation(CancellationToken cancellationToken)
+    {
+        var config = new ConsumerConfig
+        {
+            BootstrapServers = BootstrapServers,
+            GroupId = "learning-consumer-group",
+            ClientId = "learning-consumer",
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false
+        };
+        
+        using var consumer = new ConsumerBuilder<string, string>(config).Build();
+        consumer.Subscribe(TopicName);
+        
+        Console.WriteLine($"✓ [Consumer] Subscribed to {TopicName}");
+        
+        await Task.Delay(1000, cancellationToken); // Let producer start first
+        
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(1000));
+            
+            if (consumeResult != null)
             {
-                // Small delay to let producer start first
-                await Task.Delay(1000, cts.Token);
-                await RunConsumer();
+                Console.WriteLine(
+                    $"✓ [Consumer] Key='{consumeResult.Message.Key}' | " +
+                    $"Value='{consumeResult.Message.Value}' | " +
+                    $"Partition={consumeResult.Partition.Value}");
+                
+                consumer.Commit(consumeResult);
             }
-            catch { }
-        }, cts.Token);
+            
+            await Task.Delay(100, cancellationToken);
+        }
         
-        Console.ReadKey();
-        await cts.CancelAsync();
-        
-        await Task.WhenAll(producerTask, consumerTask);
-        Console.WriteLine("\n✓ Both Producer and Consumer stopped.");
+        consumer.Close();
     }
 }
