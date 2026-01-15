@@ -40,6 +40,10 @@ class Program
     /// </summary>
     static void RunProducer()
     {
+        // ProducerConfig: Configures the producer, specifying the Kafka broker.
+        // ProduceAsync: Sends a message to Kafka asynchronously.
+        // producer: The Kafka producer instance sends messages to the specified topic.
+        
         var config = new ProducerConfig
         {
             BootstrapServers = BootstrapServers,
@@ -91,6 +95,11 @@ class Program
     /// </summary>
     static void RunConsumer()
     {
+        //ConsumerConfig: Configures the consumer to connect to the broker and specify the consumer group.
+        //Subscribe: Subscribes the consumer to a topic.
+        //Consume: Reads messages from the topic.
+        //AutoOffsetReset.Earliest: Ensures the consumer starts reading messages from the beginning of the topic if no offsets exist.
+        
         var config = new ConsumerConfig
         {
             BootstrapServers = BootstrapServers,

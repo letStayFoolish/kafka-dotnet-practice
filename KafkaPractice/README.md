@@ -36,3 +36,9 @@ Run in two separate terminals to see producer and consumer working together.
 - **Consumer**: Uses consumer group, auto-commit, earliest offset
 - **Keys**: Enable ordering guarantee within partition
 - **Offsets**: Track message position per partition
+
+## Kafka Workflow Recap
+
+- The producer sends the message to the topic `"learning-topic"`. 
+- The Kafka broker receives and stores the message.
+- The consumer reads the message from the topic and processes it.
